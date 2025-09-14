@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hotel HeLa – Zimmer buchen</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 16px; }
+    .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit,minmax(260px,1fr)); }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 12px; }
+    .beds { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    button { cursor: pointer; padding: 6px 10px; border-radius: 6px; border: 1px solid #ccc; }
+    button[disabled]{ opacity:.5; cursor:not-allowed; }
+    img { width: 100%; height: 140px; object-fit: cover; border-radius: 6px; }
+    .row { display:flex; gap:8px; margin: 8px 0; }
+    .ok { color: #0a0; }
+    .err { color: #b00; }
+  </style>
+</head>
+<body>
+  <h1>Hotel HeLa – Zimmer buchen</h1>
+
+  <div class="row">
+    <input id="name" placeholder="Dein Name/Nickname" />
+    <button id="reload">Verfügbarkeit aktualisieren</button>
+  </div>
+  <p id="msg"></p>
+
+  <div id="rooms" class="grid"></div>
+
+<script>
+const API = "HIER_DEINE_APPS_SCRIPT_WEBAPP_URL_EINSETZEN"; // <-- ersetzen
+
+const ROOM_IMAGES = {
+  // optional: Zimmerbilder aus Google Drive (uc?id=FILE_ID)
+  "101": "https://drive.google.com/uc?id=FILE_ID_101",
+  "102": "https://drive.google.com/uc?id=FILE_ID_102"
+};
+
+const msg = (t, cls='') => {
+  const p = document.getElementById('msg');
+  p.className = cls;
+  p.textContent = t;
+};
+
+async function load() {
+  msg('Lade Verfügbarkeit…');
+  const res = await fetch(API, { method:'GET' });
+  const data = await res.json();
+  if(!data.ok) { msg('Fehler beim Laden', 'err'); return; }
+  render(data.rooms);
+  msg('Verfügbarkeit aktualisiert.', 'ok');
+}
+
+function render(roomsByName){
+  const wrap = document.getElementById('rooms');
+  wrap.innerHTML = '';
+  Object.keys(roomsByName).sort().forEach(roomName=>{
+    const beds = roomsByName[roomName].sort((a,b)=>Number(a.bed)-Number(b.bed));
+    const free = beds.filter(b=>!b.booked_by).length;
+    const card = document.createElement('div');
+    card.className = 'card';
+    const img = ROOM_IMAGES[roomName] ? `<img src="${ROOM_IMAGES[roomName]}" alt="Zimmer ${roomName}" />` : '';
+    card.innerHTML = `
+      ${img}
+      <h3>Zimmer ${roomName}</h3>
+      <div>${free} frei / ${beds.length} Betten</div>
+      <div class="beds"></div>
+    `;
+    const bedsDiv = card.querySelector('.beds');
+    beds.forEach(b=>{
+      const btn = document.createElement('button');
+      btn.textContent = `Bett ${b.bed}` + (b.booked_by ? ` – belegt (${b.booked_by})` : '');
+      btn.disabled = !!b.booked_by;
+      btn.onclick = ()=> book(b.id);
+      bedsDiv.appendChild(btn);
+    });
+    wrap.appendChild(card);
+  });
+}
+
+async function book(id){
+  const name = document.getElementById('name').value.trim();
+  if(!name){ msg('Bitte Name eingeben.', 'err'); return; }
+  msg('Buchung wird gesendet…');
+  const res = await fetch(API, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ id, name })
+  });
+  const data = await res.json();
+  if(data.ok){
+    msg('Gebucht! Viel Spass im HeLa 😊', 'ok');
+    load();
+  } else {
+    msg(data.error || 'Fehler bei der Buchung', 'err');
+    load();
+  }
+}
+
+document.getElementById('reload').onclick = load;
+load();
+</script>
+</body>
+</html>
